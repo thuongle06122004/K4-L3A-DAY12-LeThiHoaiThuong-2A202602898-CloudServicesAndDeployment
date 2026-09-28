@@ -29,62 +29,46 @@ Ghi tên biến và **nguồn giá trị**, không ghi giá trị:
 | Biến | Đã set | Ghi chú |
 |------|--------|---------|
 | `PORT` | ✅ | Render tự gán |
-| `AGENT_API_KEY` | ✅ |
+| `AGENT_API_KEY` | Cần set trong Render dashboard | Secret của service; chỉ ghi tên biến, không ghi giá trị |
 | `REDIS_URL` | ✅ | Render tự gắn từ Redis add-on `day12-chat-redis` (thông qua `fromService`) |
 | `RATE_LIMIT_PER_MINUTE` | ✅ | 10 |
-| `MONTHLY_BUDGET_USD` | ✅ | 1.0 |
+| `MONTHLY_BUDGET_USD` | ✅ | 10.0 |
 | `LOG_LEVEL` | ✅ | INFO |
 
 ## Lệnh Kiểm Tra
 ```powershell
 # 1. Liveness — mong đợi 200 {"status":"ok"}
-curl.exe -i https://day12-chat-1lr6.onrender.com/healthz
+curl.exe -i https://day12-chat-1lr6.onrender.com/health
 
-# 2. Readiness — mong đợi 200 {"status":"ready"} (đã nối được Redis)
-curl.exe -i https://day12-chat-1lr6.onrender.com/readyz
+# 2. Readiness — mong đợi 200 {"status":"ready","redis":true} (đã nối được Redis)
+curl.exe -i https://day12-chat-1lr6.onrender.com/ready
 
-# 3. Không có token — mong đợi 401 kèm header WWW-Authenticate
-curl.exe -i -X POST https://day12-chat-1lr6.onrender.com/chat -H "Content-Type: application/json" -d '{\"message\":\"Hello\"}'
+# 3. Không có API key — mong đợi 401
+curl.exe -i -X POST https://day12-chat-1lr6.onrender.com/ask -H "Content-Type: application/json" -d '{\"question\":\"Hello\"}'
 
-# 4. Có token — mong đợi 200 kèm câu trả lời
-$TOKEN = $env:API_TOKEN   # hoặc dán thẳng token vào
-'{"message":"Deploy la gi"}' | Set-Content body.json -Encoding utf8
-curl.exe -i -X POST https://day12-chat-1lr6.onrender.com/chat -H "Content-Type: application/json; charset=utf-8" -H "Authorization: Bearer $TOKEN" -H "X-Client-Id: sv-test" --data-binary "@body.json"
+# 4. Có API key — mong đợi 200 kèm câu trả lời
+# Lấy giá trị từ biến môi trường local; không dán secret vào tài liệu.
+$TOKEN = $env:DEPLOY_API_KEY
+'{"question":"Deploy la gi"}' | Set-Content body.json -Encoding utf8
+curl.exe -i -X POST https://day12-chat-1lr6.onrender.com/ask -H "Content-Type: application/json; charset=utf-8" -H "X-API-Key: $TOKEN" -H "X-User-Id: sv-test" --data-binary "@body.json"
 
 # 5. Rate limit — gọi 15 lần, những lần cuối phải trả 429
 for ($i=1; $i -le 15; $i++) {
-  (curl.exe -s -o $null -w "%{http_code} " -X POST https://day12-chat-1lr6.onrender.com/chat -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -H "X-Client-Id: sv-test" --data-binary "@body.json")
+  (curl.exe -s -o $null -w "%{http_code} " -X POST https://day12-chat-1lr6.onrender.com/ask -H "Content-Type: application/json" -H "X-API-Key: $TOKEN" -H "X-User-Id: sv-test" --data-binary "@body.json")
 }; Write-Host ""
 ```
 
 ## Kết Quả Chạy Thật
 
-
-```
-# /healthz
-HTTP/1.1 200 OK
-Content-Type: application/json
-{"status":"ok","service":"day12-chat-service","version":"1.0.0"}
-
-# /readyz
-HTTP/1.1 200 OK
-{"status":"ready","redis":true}
-
-# /chat (không token)
-HTTP/1.1 401 Unauthorized
-WWW-Authenticate: Bearer
-{"detail":"invalid or missing bearer token"}
-
-# /chat (có token)
-HTTP/1.1 200 OK
-{"reply":"Ngắn gọn: Render la gi phụ thuộc vào ba yếu tố — cấu hình qua biến môi trường, health check để orchestrator biết trạng thái, và giới hạn tài nguyên.","client_id":"sv-test","turns_before":0,"usd_cost":2.265e-05,"usage":{"prompt":3,"completion":37}}
+Sau khi Render redeploy commit này và biến `AGENT_API_KEY` được đặt trong
+dashboard, chạy các lệnh phía trên và ghi lại kết quả thực tế tại đây. Không
+ghi kết quả của API cũ (`/healthz`, `/readyz`, `/chat`) vì chúng không phải
+endpoint của service trong repository này.
 
 ## Ảnh Chụp Màn Hình
 
-Đặt ảnh trong thư mục `screenshots/`:
-
 Đặt trong `screenshots/`:
 - `dashboard.png` — Render dashboard của service `day12-chat`
-- `healthz.png` — kết quả gọi `/healthz`
+- `health.png` — kết quả gọi `/health`
 
 ---

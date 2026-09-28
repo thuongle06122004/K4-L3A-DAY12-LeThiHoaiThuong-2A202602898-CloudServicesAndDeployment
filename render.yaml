@@ -9,18 +9,16 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: free
-    healthCheckPath: /healthz
+    healthCheckPath: /health
     envVars:
-      - key: API_TOKEN
+      - key: AGENT_API_KEY
         sync: false
       - key: LOG_LEVEL
         value: INFO
-      - key: BUCKET_CAPACITY
+      - key: RATE_LIMIT_PER_MINUTE
         value: "10"
-      - key: REFILL_PER_MINUTE
-        value: "10"
-      - key: DAILY_BUDGET_USD
-        value: "1.0"
+      - key: MONTHLY_BUDGET_USD
+        value: "10.0"
       - key: REDIS_URL
         fromService:
           name: day12-chat-redis
